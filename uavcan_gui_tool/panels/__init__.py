@@ -10,6 +10,7 @@ from ..widgets import show_error
 
 # TODO: Load all inner modules automatically. This is not really easy because we have to support freezing.
 from . import esc_panel
+from . import fc_emu_panel
 
 
 class PanelDescriptor:
@@ -32,5 +33,5 @@ class PanelDescriptor:
 
 
 PANELS = sorted([
-    PanelDescriptor(esc_panel)
+    PanelDescriptor(esc_panel), PanelDescriptor(fc_emu_panel)
 ], key=lambda x: x.name)
