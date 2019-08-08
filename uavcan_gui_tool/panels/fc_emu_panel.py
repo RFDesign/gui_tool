@@ -130,7 +130,7 @@ class FCEMUPanel(QDialog):
         try:
             if not self._pause.isChecked():
                 msg = uavcan.thirdparty.rfd.af3.FlightControllerHealth()
-                msg.ErrorScore = self._slider.get_value();
+                msg.ErrorScore = 1 - self._slider.get_value();
                  
                 self._node.broadcast(msg)
                 self._msg_viewer.setPlainText(uavcan.to_yaml(msg))
