@@ -121,6 +121,8 @@ class MainWindow(QMainWindow):
         #self._node_monitor_widget.currentItemChanged.connect(self.node_table_item_changed)
         
         self._disable_port_widget = DisablePort(self)
+        self._disable_port_widget.setEnabled(False)
+        self._disable_port_widget.Go.connect(self.enable_disable_ports)
 
         self._local_node_widget = LocalNodeWidget(self, node)
         self._log_message_widget = LogMessageDisplayWidget(self, node)
@@ -246,9 +248,24 @@ class MainWindow(QMainWindow):
     #    logger.info('Item changed')
     def node_table_all_nodes_deselected(self):
         logger.info('All nodes deselected')
+        self._disable_port_widget.setEnabled(False)
         
     def node_table_node_selected(self, nid):
         logger.info(str(nid) + ' selected')
+        self._disable_port_widget.setEnabled(True)
+        self._nidselected = nid
+        self._disable_port_widget.SetNodeID(nid)
+        
+    def enable_disable_ports(self):
+        if (self._node.is_anonymous):
+            self._disable_port_widget.SetMsg('Cannot do in anonymous mode.  Set a local node ID')
+        else:
+            logger.info('Enabling/disabling ' + str(self._nidselected))
+            msg = uavcan.thirdparty.rfd.af3.IgnoreCANPort()
+            msg.NodeID = self._nidselected
+            msg.IgnoreCANPort = self._disable_port_widget.GetEnabledArray()
+            self._node.broadcast(msg)
+            self._disable_port_widget.SetMsg(uavcan.to_yaml(msg))
 
     def _try_spawn_can_adapter_control_panel(self):
         try:
