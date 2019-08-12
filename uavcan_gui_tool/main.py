@@ -83,6 +83,7 @@ from .widgets.subscriber import SubscriberWindow
 from .widgets.plotter import PlotterManager
 from .widgets.about_window import AboutWindow
 from .widgets.can_adapter_control_panel import spawn_window as spawn_can_adapter_control_panel
+from .widgets.disable_port import DisablePort
 
 from .panels import PANELS
 
@@ -115,6 +116,11 @@ class MainWindow(QMainWindow):
 
         self._node_monitor_widget = NodeMonitorWidget(self, node)
         self._node_monitor_widget.on_info_window_requested = self._show_node_window
+        self._node_monitor_widget.AllNodesDeselected.connect(self.node_table_all_nodes_deselected)
+        self._node_monitor_widget.NodeSelected.connect(self.node_table_node_selected)
+        #self._node_monitor_widget.currentItemChanged.connect(self.node_table_item_changed)
+        
+        self._disable_port_widget = DisablePort(self)
 
         self._local_node_widget = LocalNodeWidget(self, node)
         self._log_message_widget = LogMessageDisplayWidget(self, node)
@@ -229,11 +235,20 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(make_splitter(Qt.Horizontal,
                                             make_vbox(self._local_node_widget,
                                                       self._node_monitor_widget,
+                                                      self._disable_port_widget,
                                                       self._file_server_widget),
                                             make_splitter(Qt.Vertical,
                                                           make_vbox(self._log_message_widget),
                                                           make_vbox(self._dynamic_node_id_allocation_widget,
                                                                     stretch_index=1))))
+
+    #def node_table_item_changed(self, c, p):
+    #    logger.info('Item changed')
+    def node_table_all_nodes_deselected(self):
+        logger.info('All nodes deselected')
+        
+    def node_table_node_selected(self, nid):
+        logger.info(str(nid) + ' selected')
 
     def _try_spawn_can_adapter_control_panel(self):
         try:

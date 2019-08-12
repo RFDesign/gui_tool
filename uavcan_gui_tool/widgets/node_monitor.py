@@ -6,6 +6,10 @@
 # Author: Pavel Kirienko <pavel.kirienko@zubax.com>
 #
 
+#
+# This is the main list of nodes on the main window.
+#
+
 import datetime
 import uavcan
 from . import BasicTable, get_monospace_font
@@ -102,10 +106,16 @@ class NodeTable(BasicTable):
     def close(self):
         self._monitor.close()
 
+    def get_node_ids_selected(self):
+        res = []
+        for si in self.selectionModel().selectedRows():
+            res.append(int(self.item(si.row(), 0).text()))
+        return res
+
     def _call_info_requested_callback_on_row(self, row):
         nid = int(self.item(row, 0).text())
         self.info_requested.emit(nid)
-
+        
     def _on_enter(self, list_of_row_col_pairs):
         unique_rows = set([row for row, _col in list_of_row_col_pairs])
         if len(unique_rows) == 1:
@@ -146,6 +156,9 @@ class NodeTable(BasicTable):
 
 
 class NodeMonitorWidget(QGroupBox):
+    AllNodesDeselected = pyqtSignal()
+    NodeSelected = pyqtSignal(int)
+    
     def __init__(self, parent, node):
         super(NodeMonitorWidget, self).__init__(parent)
         self.setTitle('Online nodes (double click for more options)')
@@ -160,6 +173,7 @@ class NodeMonitorWidget(QGroupBox):
 
         self._table = NodeTable(self, node)
         self._table.info_requested.connect(self._show_info_window)
+        self._table.itemSelectionChanged.connect(self.node_table_item_changed)
 
         self._monitor_handle = self._table.monitor.add_update_handler(lambda _: self._update_status())
 
@@ -169,10 +183,20 @@ class NodeMonitorWidget(QGroupBox):
         vbox.addWidget(self._table)
         vbox.addWidget(self._status_label)
         self.setLayout(vbox)
-
+        
     @property
     def monitor(self):
         return self._table.monitor
+    
+    def node_table_item_changed(self):
+        logger.info('Item changed')
+        for ni in self._table.get_node_ids_selected():
+            logger.info(ni)
+        ids = self._table.get_node_ids_selected()
+        if (len(ids) == 0):
+            self.AllNodesDeselected.emit()
+        else:
+            self.NodeSelected.emit(ids[0])
 
     def close(self):
         self._table.close()
