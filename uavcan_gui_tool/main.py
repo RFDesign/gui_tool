@@ -116,14 +116,7 @@ class MainWindow(QMainWindow):
 
         self._node_monitor_widget = NodeMonitorWidget(self, node)
         self._node_monitor_widget.on_info_window_requested = self._show_node_window
-        self._node_monitor_widget.AllNodesDeselected.connect(self.node_table_all_nodes_deselected)
-        self._node_monitor_widget.NodeSelected.connect(self.node_table_node_selected)
-        #self._node_monitor_widget.currentItemChanged.connect(self.node_table_item_changed)
         
-        self._disable_port_widget = DisablePort(self)
-        self._disable_port_widget.setEnabled(False)
-        self._disable_port_widget.Go.connect(self.enable_disable_ports)
-
         self._local_node_widget = LocalNodeWidget(self, node)
         self._log_message_widget = LogMessageDisplayWidget(self, node)
         self._dynamic_node_id_allocation_widget = DynamicNodeIDAllocatorWidget(self, node,
@@ -237,35 +230,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(make_splitter(Qt.Horizontal,
                                             make_vbox(self._local_node_widget,
                                                       self._node_monitor_widget,
-                                                      self._disable_port_widget,
                                                       self._file_server_widget),
                                             make_splitter(Qt.Vertical,
                                                           make_vbox(self._log_message_widget),
                                                           make_vbox(self._dynamic_node_id_allocation_widget,
                                                                     stretch_index=1))))
-
-    #def node_table_item_changed(self, c, p):
-    #    logger.info('Item changed')
-    def node_table_all_nodes_deselected(self):
-        logger.info('All nodes deselected')
-        self._disable_port_widget.setEnabled(False)
-        
-    def node_table_node_selected(self, nid):
-        logger.info(str(nid) + ' selected')
-        self._disable_port_widget.setEnabled(True)
-        self._nidselected = nid
-        self._disable_port_widget.SetNodeID(nid)
-        
-    def enable_disable_ports(self):
-        if (self._node.is_anonymous):
-            self._disable_port_widget.SetMsg('Cannot do in anonymous mode.  Set a local node ID')
-        else:
-            logger.info('Enabling/disabling ' + str(self._nidselected))
-            msg = uavcan.thirdparty.rfd.af3.IgnoreCANPort()
-            msg.NodeID = self._nidselected
-            msg.IgnoreCANPort = self._disable_port_widget.GetEnabledArray()
-            self._node.broadcast(msg)
-            self._disable_port_widget.SetMsg(uavcan.to_yaml(msg))
 
     def _try_spawn_can_adapter_control_panel(self):
         try:
