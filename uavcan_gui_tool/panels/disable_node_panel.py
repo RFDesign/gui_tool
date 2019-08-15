@@ -13,6 +13,8 @@ from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget, QLabel, QDialog, 
 from PyQt5.QtCore import QTimer, Qt
 from logging import getLogger
 from ..widgets import make_icon_button, get_icon, get_monospace_font
+from ..widgets.disable_port import DisablePort
+from ..widgets.disable_port_node_monitor import NodeMonitorWidget
 
 __all__ = 'PANEL_NAME', 'spawn', 'get_icon'
 
@@ -24,123 +26,41 @@ logger = getLogger(__name__)
 _singleton = None
 
 
-class PercentSlider(QWidget):
-    def __init__(self, parent):
-        super(PercentSlider, self).__init__(parent)
-
-        self._slider = QSlider(Qt.Vertical, self)
-        self._slider.setMinimum(0)
-        self._slider.setMaximum(100)
-        self._slider.setValue(100)
-        self._slider.setTickInterval(10)
-        self._slider.setTickPosition(QSlider.TicksBothSides)
-        self._slider.valueChanged.connect(lambda: self._spinbox.setValue(self._slider.value()/100))
-
-        #self._label = QLabel(self)
-
-        self._spinbox = QDoubleSpinBox(self)
-        self._spinbox.setMinimum(0)
-        self._spinbox.setMaximum(1)
-        self._spinbox.setValue(1)
-        self._spinbox.setSingleStep(0.01)
-        self._spinbox.valueChanged.connect(lambda: self._slider.setValue(self._spinbox.value()*100))
-
-        self._default_button = make_icon_button('hand-stop-o', 'Default setpoint', self, on_clicked=self.default)
-
-        layout = QVBoxLayout(self)
-        sub_layout = QHBoxLayout(self)
-        sub_layout.addStretch()
-        sub_layout.addWidget(self._slider)
-        sub_layout.addStretch()
-        layout.addLayout(sub_layout)
-        layout.addWidget(self._spinbox)
-        layout.addWidget(self._default_button)
-        self.setLayout(layout)
-
-        self.setMinimumHeight(400)
-
-    def default(self):
-        self._slider.setValue(100)
-
-    def get_value(self):
-        return self._slider.value()/100
-
 #The flight controller emulator panel form
-class FCEMUPanel(QDialog):
+class DisableNodePanel(QDialog):
     DEFAULT_INTERVAL = 0.1
 
     def __init__(self, parent, node):
-        super(FCEMUPanel, self).__init__(parent)
-        self.setWindowTitle('FC Emu. Panel')
+        super(DisableNodePanel, self).__init__(parent)
+        self.setWindowTitle('Disable CAN Panel')
         self.setAttribute(Qt.WA_DeleteOnClose)              # This is required to stop background timers!
 
         self._node = node
 
-        self._slider = PercentSlider(self)
-
-        self._bcast_interval = QDoubleSpinBox(self)
-        self._bcast_interval.setMinimum(0.01)
-        self._bcast_interval.setMaximum(1.0)
-        self._bcast_interval.setSingleStep(0.1)
-        self._bcast_interval.setValue(self.DEFAULT_INTERVAL)
-        self._bcast_interval.valueChanged.connect(
-            lambda: self._bcast_timer.setInterval(self._bcast_interval.value() * 1e3))
-
-        self._stop_all = make_icon_button('hand-stop-o', 'Zero all channels', self, text='Stop All',
-                                          on_clicked=self._do_stop_all)
-
-        self._pause = make_icon_button('pause', 'Pause publishing', self, checkable=True, text='Pause')
-
-        self._msg_viewer = QPlainTextEdit(self)
-        self._msg_viewer.setReadOnly(True)
-        self._msg_viewer.setLineWrapMode(QPlainTextEdit.NoWrap)
-        self._msg_viewer.setFont(get_monospace_font())
-        self._msg_viewer.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self._msg_viewer.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-
-        self._bcast_timer = QTimer(self)
-        self._bcast_timer.start(self.DEFAULT_INTERVAL * 1e3)
-        self._bcast_timer.timeout.connect(self._do_broadcast)
-
         layout = QVBoxLayout(self)
 
-        self._slider_layout = QHBoxLayout(self)
-        self._slider_layout.addWidget(self._slider)
-        layout.addLayout(self._slider_layout)
+        logger.info('Creating node monitor')
+        self._disable_monitor = NodeMonitorWidget(self, node)
+        self._disable_monitor.AllNodesDeselected.connect(self.node_table_all_nodes_deselected)
+        self._disable_monitor.NodeSelected.connect(self.node_table_node_selected)
+        
+        logger.info('Creating Disable port')
+        self._disable_port = DisablePort(self)
+        self._disable_port.setEnabled(False)
+        self._disable_port.Go.connect(self.enable_disable_ports)
 
-        layout.addWidget(self._stop_all)
+        logger.info('Add monitor widget')
 
-        controls_layout = QHBoxLayout(self)
- #       controls_layout.addWidget(QLabel('Channels:', self))
- #       controls_layout.addWidget(self._num_sliders)
-        controls_layout.addWidget(QLabel('Broadcast interval:', self))
-        controls_layout.addWidget(self._bcast_interval)
-        controls_layout.addWidget(QLabel('sec', self))
-        controls_layout.addStretch()
-        controls_layout.addWidget(self._pause)
-        layout.addLayout(controls_layout)
+        layout.addWidget(self._disable_monitor)
+        logger.info('Add dis port widget')
+        layout.addWidget(self._disable_port)
 
-        layout.addWidget(QLabel('Generated message:', self))
-        layout.addWidget(self._msg_viewer)
+        logger.info('Setting layout')
 
         self.setLayout(layout)
-        self.resize(self.minimumWidth(), self.minimumHeight())
-
-    def _do_broadcast(self):
-        try:
-            if not self._pause.isChecked():
-                msg = uavcan.thirdparty.rfd.af3.FlightControllerHealth()
-                msg.ErrorScore = 1 - self._slider.get_value();
-                 
-                self._node.broadcast(msg)
-                self._msg_viewer.setPlainText(uavcan.to_yaml(msg))
-            else:
-                self._msg_viewer.setPlainText('Paused')
-        except Exception as ex:
-            self._msg_viewer.setPlainText('Publishing failed:\n' + str(ex))
-
-    def _do_stop_all(self):
-        self._slider.default()
+        logger.info('Resizing')
+        #self.resize(self.minimumWidth(), self.minimumHeight())
+        logger.info('Resized')
 
     def __del__(self):
         global _singleton
@@ -149,13 +69,33 @@ class FCEMUPanel(QDialog):
     def closeEvent(self, event):
         global _singleton
         _singleton = None
-        super(FCEMUPanel, self).closeEvent(event)
-
+        super(DisableNodePanel, self).closeEvent(event)
+        
+    def node_table_all_nodes_deselected(self):
+        logger.info('All nodes deselected')
+        self._disable_port.setEnabled(False)
+        
+    def node_table_node_selected(self, nid):
+        logger.info(str(nid) + ' selected')
+        self._disable_port.setEnabled(True)
+        self._nidselected = nid
+        self._disable_port.SetNodeID(nid)
+        
+    def enable_disable_ports(self):
+        if (self._node.is_anonymous):
+            self._disable_port.SetMsg('Cannot do in anonymous mode.  Set a local node ID')
+        else:
+            logger.info('Enabling/disabling ' + str(self._nidselected))
+            msg = uavcan.thirdparty.rfd.af3.IgnoreCANPort()
+            msg.NodeID = self._nidselected
+            msg.IgnoreCANPort = self._disable_port.GetEnabledArray()
+            self._node.broadcast(msg)
+            self._disable_port.SetMsg(uavcan.to_yaml(msg))
 
 def spawn(parent, node):
     global _singleton
     if _singleton is None:
-        _singleton = FCEMUPanel(parent, node)
+        _singleton = DisableNodePanel(parent, node)
 
     _singleton.show()
     _singleton.raise_()
