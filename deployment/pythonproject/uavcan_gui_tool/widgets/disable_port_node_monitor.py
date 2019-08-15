@@ -10,16 +10,12 @@
 # This is the main list of nodes on the main window.
 #
 
-# com.rfd.arbiter
-# com.rfd.endpoint
-
 import datetime
 import uavcan
 from . import BasicTable, get_monospace_font
 from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHeaderView, QLabel
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from logging import getLogger
-from PyQt5.Qt import QCheckBox
 
 
 logger = getLogger(__name__)
@@ -69,7 +65,6 @@ class DisTableNode:
         self.nid = nid
         self.name = name
         self.talking = talking
-        self.can = None
         
 class DisTableSession:
     def __init__(self, node):
@@ -77,14 +72,10 @@ class DisTableSession:
         self._monitor = uavcan.app.node_monitor.NodeMonitor(node)
         self._remembered = dict()
     
-    def GetAllNodes(self, filter):
+    def GetAllNodes(self):
         known_nodes = {e.node_id: e for e in self._monitor.find_all(lambda _: True)}
         for nid in known_nodes.keys():
-            if self._remembered.__contains__(nid):
-                self._remembered[nid].name = known_nodes[nid].info.name
-                self._remembered[nid].talking = True
-            else:
-                self._remembered[nid] = DisTableNode(nid, known_nodes[nid].info.name if known_nodes[nid].info else '?', True)
+            self._remembered[nid] = DisTableNode(nid, known_nodes[nid].info.name if known_nodes[nid].info else '?', True)
     
         for nid in self._remembered.keys():
             if not known_nodes.__contains__(nid):
@@ -92,31 +83,14 @@ class DisTableSession:
                 
         if not self._remembered.__contains__(0):
             self._remembered[0] = DisTableNode(0, 'Everything', False)
-        
-        if filter:
-            result = dict()
-            for nid in self._remembered.keys():
-                if ('com.rfd.arbiter' in self._remembered[nid].name) or ('com.rfd.endpoint' in self._remembered[nid].name):
-                    result[nid] = self._remembered[nid]
-            result[0] = self._remembered[0]
-            
-            return result
-        else:
-            return self._remembered
+                
+        return self._remembered
     
     def close(self):
         self._monitor.close()
-        
-    def set_node_CAN_Status(self, nid, can):
-        if nid == 0:
-            for id in self._remembered.keys():
-                self._remembered[id].can = can
-        else:
-            if self._remembered.__contains__(nid):
-                self._remembered[nid].can = can
+                
 
 class NodeTable(BasicTable):
-    filter_checkbox = None
     COLUMNS = [
         BasicTable.Column('NID',
                           lambda e: e.nid),
@@ -125,12 +99,6 @@ class NodeTable(BasicTable):
                           QHeaderView.Stretch),
         BasicTable.Column('Talking',
                           lambda e: e.talking),
-        BasicTable.Column('CAN 0',
-                          lambda e: str(e.can[0]) if (e.can != None) else '?'),
-        BasicTable.Column('CAN 1',
-                          lambda e: str(e.can[1]) if (e.can != None) else '?'),
-        BasicTable.Column('CAN 2',
-                          lambda e: str(e.can[2]) if (e.can != None) else '?'),
     ]
 
     info_requested = pyqtSignal([int])
@@ -149,9 +117,6 @@ class NodeTable(BasicTable):
 
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
-    def set_node_CAN_Status(self, nid, can):
-        self._session.set_node_CAN_Status(nid, can)
-
     def close(self):
         self._monitor.close()
 
@@ -162,10 +127,7 @@ class NodeTable(BasicTable):
         return res
 
     def _update(self):
-        filter = True
-        if self.filter_checkbox != None:
-            filter = self.filter_checkbox.isChecked()
-        known_nodes = self._session.GetAllNodes(filter)
+        known_nodes = self._session.GetAllNodes()
         displayed_nodes = set()
         rows_to_remove = []
 
@@ -223,20 +185,11 @@ class NodeMonitorWidget(QGroupBox):
 
         vbox = QVBoxLayout(self)
         vbox.addWidget(self._table)
-        
-        self._namefilter = QCheckBox('Show only nodes whose name contains com.rfd.arbiter or com.rfd.endpoint')
-        self._namefilter.setChecked(True)
-        vbox.addWidget(self._namefilter)
-        self._table.filter_checkbox = self._namefilter
-        
         self.setLayout(vbox)
         
     @property
     def monitor(self):
         return self._table.monitor
-    
-    def set_node_CAN_Status(self, nid, can):
-        self._table.set_node_CAN_Status(nid, can)
     
     def node_table_item_changed(self):
         logger.info('Item changed')

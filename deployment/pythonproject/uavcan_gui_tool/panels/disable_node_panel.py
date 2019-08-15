@@ -88,11 +88,9 @@ class DisableNodePanel(QDialog):
             logger.info('Enabling/disabling ' + str(self._nidselected))
             msg = uavcan.thirdparty.rfd.af3.IgnoreCANPort()
             msg.NodeID = self._nidselected
-            CanEnabled = self._disable_port.GetEnabledArray()
-            msg.IgnoreCANPort = [not i for i in CanEnabled]
+            msg.IgnoreCANPort = self._disable_port.GetEnabledArray()
             self._node.broadcast(msg)
             self._disable_port.SetMsg(uavcan.to_yaml(msg))
-            self._disable_monitor.set_node_CAN_Status(self._nidselected, CanEnabled)
 
 def spawn(parent, node):
     global _singleton

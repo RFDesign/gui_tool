@@ -27,7 +27,7 @@ class DisablePort(QWidget):
         self._check2.setChecked(True)
         layout.addWidget(self._check2)
         
-        self._Go = QPushButton('Enable CAN Ports')
+        self._Go = QPushButton('Disable CAN Ports')
         self._Go.clicked.connect(self.on_go)
         layout.addWidget(self._Go)
         
@@ -48,7 +48,7 @@ class DisablePort(QWidget):
         return [self._check0.isChecked(), self._check1.isChecked(), self._check2.isChecked()]
     
     def SetNodeID(self, nid):
-        self._Go.setText('Enable CAN Ports on ' + str(nid))
+        self._Go.setText('Disable CAN Ports on ' + str(nid))
     
     def SetMsg(self, msg):
         self._msg_viewer.setPlainText(msg)

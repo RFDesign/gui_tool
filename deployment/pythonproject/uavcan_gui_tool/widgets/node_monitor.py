@@ -10,16 +10,12 @@
 # This is the main list of nodes on the main window.
 #
 
-# com.rfd.arbiter
-# com.rfd.endpoint
-
 import datetime
 import uavcan
 from . import BasicTable, get_monospace_font
 from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QHeaderView, QLabel
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from logging import getLogger
-from PyQt5.Qt import QCheckBox
 
 
 logger = getLogger(__name__)
@@ -64,73 +60,24 @@ def render_vendor_specific_status_code(s):
     out += ''.join(nibbles)
     return out
 
-class DisTableNode:
-    def __init__(self, nid, name, talking):
-        self.nid = nid
-        self.name = name
-        self.talking = talking
-        self.can = None
-        
-class DisTableSession:
-    def __init__(self, node):
-        self._node = node
-        self._monitor = uavcan.app.node_monitor.NodeMonitor(node)
-        self._remembered = dict()
-    
-    def GetAllNodes(self, filter):
-        known_nodes = {e.node_id: e for e in self._monitor.find_all(lambda _: True)}
-        for nid in known_nodes.keys():
-            if self._remembered.__contains__(nid):
-                self._remembered[nid].name = known_nodes[nid].info.name
-                self._remembered[nid].talking = True
-            else:
-                self._remembered[nid] = DisTableNode(nid, known_nodes[nid].info.name if known_nodes[nid].info else '?', True)
-    
-        for nid in self._remembered.keys():
-            if not known_nodes.__contains__(nid):
-                self._remembered[nid].talking = False
-                
-        if not self._remembered.__contains__(0):
-            self._remembered[0] = DisTableNode(0, 'Everything', False)
-        
-        if filter:
-            result = dict()
-            for nid in self._remembered.keys():
-                if ('com.rfd.arbiter' in self._remembered[nid].name) or ('com.rfd.endpoint' in self._remembered[nid].name):
-                    result[nid] = self._remembered[nid]
-            result[0] = self._remembered[0]
-            
-            return result
-        else:
-            return self._remembered
-    
-    def close(self):
-        self._monitor.close()
-        
-    def set_node_CAN_Status(self, nid, can):
-        if nid == 0:
-            for id in self._remembered.keys():
-                self._remembered[id].can = can
-        else:
-            if self._remembered.__contains__(nid):
-                self._remembered[nid].can = can
 
 class NodeTable(BasicTable):
-    filter_checkbox = None
     COLUMNS = [
         BasicTable.Column('NID',
-                          lambda e: e.nid),
+                          lambda e: e.node_id),
         BasicTable.Column('Name',
-                          lambda e: e.name,
+                          lambda e: e.info.name if e.info else '?',
                           QHeaderView.Stretch),
-        BasicTable.Column('Talking',
-                          lambda e: e.talking),
-        BasicTable.Column('CAN 0',
-                          lambda e: str(e.can[0]) if (e.can != None) else '?'),
-        BasicTable.Column('CAN 1',
-                          lambda e: str(e.can[1]) if (e.can != None) else '?'),
-        BasicTable.Column('CAN 2',
-                          lambda e: str(e.can[2]) if (e.can != None) else '?'),
+        BasicTable.Column('Mode',
+                          lambda e: (uavcan.value_to_constant_name(e.status, 'mode'),
+                                     node_mode_to_color(e.status.mode))),
+        BasicTable.Column('Health',
+                          lambda e: (uavcan.value_to_constant_name(e.status, 'health'),
+                                     node_health_to_color(e.status.health))),
+        BasicTable.Column('Uptime',
+                          lambda e: datetime.timedelta(days=0, seconds=e.status.uptime_sec)),
+        BasicTable.Column('VSSC',
+                          lambda e: render_vendor_specific_status_code(e.status.vendor_specific_status_code))
     ]
 
     info_requested = pyqtSignal([int])
@@ -138,7 +85,10 @@ class NodeTable(BasicTable):
     def __init__(self, parent, node):
         super(NodeTable, self).__init__(parent, self.COLUMNS, font=get_monospace_font())
 
-        self._session = DisTableSession(node)
+        self.cellDoubleClicked.connect(lambda row, col: self._call_info_requested_callback_on_row(row))
+        self.on_enter_pressed = self._on_enter
+
+        self._monitor = uavcan.app.node_monitor.NodeMonitor(node)
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(False)
@@ -149,8 +99,9 @@ class NodeTable(BasicTable):
 
         self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
-    def set_node_CAN_Status(self, nid, can):
-        self._session.set_node_CAN_Status(nid, can)
+    @property
+    def monitor(self):
+        return self._monitor
 
     def close(self):
         self._monitor.close()
@@ -161,11 +112,17 @@ class NodeTable(BasicTable):
             res.append(int(self.item(si.row(), 0).text()))
         return res
 
+    def _call_info_requested_callback_on_row(self, row):
+        nid = int(self.item(row, 0).text())
+        self.info_requested.emit(nid)
+        
+    def _on_enter(self, list_of_row_col_pairs):
+        unique_rows = set([row for row, _col in list_of_row_col_pairs])
+        if len(unique_rows) == 1:
+            self._call_info_requested_callback_on_row(list(unique_rows)[0])
+
     def _update(self):
-        filter = True
-        if self.filter_checkbox != None:
-            filter = self.filter_checkbox.isChecked()
-        known_nodes = self._session.GetAllNodes(filter)
+        known_nodes = {e.node_id: e for e in self._monitor.find_all(lambda _: True)}
         displayed_nodes = set()
         rows_to_remove = []
 
@@ -204,39 +161,32 @@ class NodeMonitorWidget(QGroupBox):
     
     def __init__(self, parent, node):
         super(NodeMonitorWidget, self).__init__(parent)
-        self.setTitle('Nodes')
+        self.setTitle('Online nodes (double click for more options)')
 
         self._node = node
         self.on_info_window_requested = lambda *_: None
 
-        logger.info('Creating update timer')
+        self._status_update_timer = QTimer(self)
+        self._status_update_timer.setSingleShot(False)
+        self._status_update_timer.timeout.connect(self._update_status)
+        self._status_update_timer.start(500)
 
-        #self._status_update_timer = QTimer(self)
-        #self._status_update_timer.setSingleShot(False)
-        #self._status_update_timer.timeout.connect(self._update_status)
-        #self._status_update_timer.start(500)
-
-        logger.info('Creating NodeTable')
         self._table = NodeTable(self, node)
         self._table.info_requested.connect(self._show_info_window)
         self._table.itemSelectionChanged.connect(self.node_table_item_changed)
 
+        self._monitor_handle = self._table.monitor.add_update_handler(lambda _: self._update_status())
+
+        self._status_label = QLabel(self)
+
         vbox = QVBoxLayout(self)
         vbox.addWidget(self._table)
-        
-        self._namefilter = QCheckBox('Show only nodes whose name contains com.rfd.arbiter or com.rfd.endpoint')
-        self._namefilter.setChecked(True)
-        vbox.addWidget(self._namefilter)
-        self._table.filter_checkbox = self._namefilter
-        
+        vbox.addWidget(self._status_label)
         self.setLayout(vbox)
         
     @property
     def monitor(self):
         return self._table.monitor
-    
-    def set_node_CAN_Status(self, nid, can):
-        self._table.set_node_CAN_Status(nid, can)
     
     def node_table_item_changed(self):
         logger.info('Item changed')
@@ -252,6 +202,16 @@ class NodeMonitorWidget(QGroupBox):
         self._table.close()
         self._monitor_handle.remove()
         self._status_update_timer.stop()
+
+    def _update_status(self):
+        if self._node.is_anonymous:
+            self._status_label.setText('Discovery is not possible - local node is configured in anonymous mode')
+        else:
+            num_undiscovered = len(list(self.monitor.find_all(lambda e: not e.discovered)))
+            if num_undiscovered > 0:
+                self._status_label.setText('Node discovery is in progress, %d left...' % num_undiscovered)
+            else:
+                self._status_label.setText('All nodes are discovered')
 
     def _show_info_window(self, node_id):
         self.on_info_window_requested(node_id)
