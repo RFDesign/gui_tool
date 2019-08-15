@@ -1,0 +1,18 @@
+Installation:
+*  Install python (it only runs with python 3, not 2):
+	-  Run python-3.7.4.exe
+	-  Check "Add python 3.7 to PATH"
+	-  Install now
+	-  Yes
+	-  Disable path length limit
+	-  Yes
+	-  Close
+*  Start a command line prompt
+*  pip install uavcan PyQt5 qtawesome numpy pyyaml pyserial
+*  Copy the rfd custom dsdl folder hierarchy into c:\users\[username]\uavcan_vendor_specific_types, 
+	so the rfd folder is in the uavcan_vendor_specific_types folder
+
+Running
+*  Start a command line prompt
+*  Change to the pythonproject folder.
+*  python run.py
