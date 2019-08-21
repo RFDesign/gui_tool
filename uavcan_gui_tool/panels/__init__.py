@@ -12,6 +12,7 @@ from ..widgets import show_error
 from . import esc_panel
 from . import fc_emu_panel
 from . import disable_node_panel
+from . import use_fc_panel
 
 class PanelDescriptor:
     def __init__(self, module):
@@ -33,5 +34,5 @@ class PanelDescriptor:
 
 
 PANELS = sorted([
-    PanelDescriptor(esc_panel), PanelDescriptor(fc_emu_panel), PanelDescriptor(disable_node_panel)
+    PanelDescriptor(esc_panel), PanelDescriptor(fc_emu_panel), PanelDescriptor(disable_node_panel), PanelDescriptor(use_fc_panel)
 ], key=lambda x: x.name)
