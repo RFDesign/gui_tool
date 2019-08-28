@@ -96,7 +96,8 @@ class DisTableSession:
         if filter:
             result = dict()
             for nid in self._remembered.keys():
-                if ('com.rfd.arbiter' in self._remembered[nid].name) or ('com.rfd.endpoint' in self._remembered[nid].name):
+                #logger.info('Checking if ' + str(self._remembered[nid].name) + ' contains.')
+                if ('com.rfd.arbiter' in str(self._remembered[nid].name)) or ('com.rfd.endpoint' in str(self._remembered[nid].name)):
                     result[nid] = self._remembered[nid]
             result[0] = self._remembered[0]
             

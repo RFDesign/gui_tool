@@ -86,7 +86,6 @@ class UseFCPanel(QDialog):
         _singleton = None
         super(UseFCPanel, self).closeEvent(event)
 
-
 def spawn(parent, node):
     global _singleton
     if _singleton is None:

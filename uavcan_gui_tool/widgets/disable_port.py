@@ -49,6 +49,9 @@ class DisablePort(QWidget):
     
     def SetNodeID(self, nid):
         self._Go.setText('Enable CAN Ports on ' + str(nid))
+        #self._check0.setChecked(isChecked[0] if (isChecked != None) else True)
+        #self._check1.setChecked(isChecked[1] if (isChecked != None) else True)
+        #self._check2.setChecked(isChecked[2] if (isChecked != None) else True)
     
     def SetMsg(self, msg):
         self._msg_viewer.setPlainText(msg)
