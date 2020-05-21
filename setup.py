@@ -22,7 +22,7 @@ HUMAN_FRIENDLY_NAME = 'UAVCAN GUI Tool'
 SOURCE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 sys.path.append(os.path.join(SOURCE_DIR, PACKAGE_NAME))
-from version import __version__
+#from version import __version__
 
 assert sys.version_info[0] == 3, 'Python 3 is required'
 
@@ -43,7 +43,7 @@ if not glob.glob(os.path.join(SOURCE_DIR, PACKAGE_NAME, 'thirdparty', '*', '*'))
 #
 args = dict(
     name=PACKAGE_NAME,
-    version='.'.join(map(str, __version__)),
+    version="1.0",
     packages=find_packages(),
     setup_requires=[
         'setuptools',
@@ -135,7 +135,7 @@ WINDOWS_SIGNATURE_TIMESTAMPING_SERVER = 'http://timestamp.verisign.com/scripts/t
 
 def get_windows_signtool_path():
     # TODO: Search for signtool properly
-    p = os.path.join(r'C:\Program Files (x86)\Windows Kits\10\bin\x86', 'signtool.exe')
+    p = os.path.join(r'C:\Program Files (x86)\Microsoft SDKs\ClickOnce\SignTool', 'signtool.exe')
     if os.path.isfile(p):
         return p
     print('SIGNTOOL.EXE NOT FOUND (probably because the search algorithm is imperfect at best)')
@@ -156,15 +156,23 @@ if ('bdist_msi' in sys.argv) or ('build_exe' in sys.argv):
     ]
     unpacked_eggs_dir = os.path.join('build', 'hatched_eggs')
     sys.path.insert(0, unpacked_eggs_dir)
+    
     try:
-        shutil.rmtree(unpacked_eggs_dir)
+        pass #shutil.rmtree(unpacked_eggs_dir)
     except Exception:
         pass
     for dep in dependency_eggs_to_unpack:
+        print("DEP:"+dep)
         for egg in pkg_resources.require(dep):
+            
             if not os.path.isdir(egg.location):
+                print("FILEEGG:"+egg.location)
                 unpack_archive(egg.location, unpacked_eggs_dir)
-
+            else:
+                if os.path.isdir(egg.location) and not egg.location.endswith("site-packages"):
+                    print("xcopy "+egg.location+"\\","E:\\rfdesign\\ugt\\gui_tool\\"+unpacked_eggs_dir)
+                    print("DIREGG:"+egg.location)
+                    pass
     import qtawesome
     import qtconsole
     import PyQt5
@@ -178,7 +186,14 @@ if ('bdist_msi' in sys.argv) or ('build_exe' in sys.argv):
 
     # Oh, Windows, never change.
     missing_dlls = glob.glob(os.path.join(os.path.dirname(numpy.core.__file__), '*.dll'))
+
+    missing_dlls2 = glob.glob(os.path.join(os.path.dirname(PyQt5.__file__), 'Qt\\bin\\*.dll'))
+    print('Missing DLL2a:',os.path.join(os.path.dirname(PyQt5.__file__), 'Qt\\bin\\*.dll'))
+    print('Missing DLL2b:', PyQt5.__file__)
+
     print('Missing DLL:', missing_dlls)
+    print('Missing DLL2:', missing_dlls2)
+    #exit()
 
     # My reverence for you, I hope, will help control my inborn instability; we are accustomed to a zigzag way of life.
     args['options'] = {
@@ -210,7 +225,7 @@ if ('bdist_msi' in sys.argv) or ('build_exe' in sys.argv):
                 os.path.join(unpacked_eggs_dir, os.path.dirname(jupyter_client.__file__)),
                 os.path.join(unpacked_eggs_dir, os.path.dirname(traitlets.__file__)),
                 os.path.join(unpacked_eggs_dir, os.path.dirname(numpy.__file__)),
-            ] + missing_dlls,
+            ] + missing_dlls + missing_dlls2,
         },
         'bdist_msi': {
             'initial_target_dir': '[ProgramFilesFolder]\\UAVCAN\\' + HUMAN_FRIENDLY_NAME,
@@ -231,10 +246,12 @@ if ('bdist_msi' in sys.argv) or ('build_exe' in sys.argv):
         signtool_path = get_windows_signtool_path()
         print('Using this signtool:', signtool_path)
 
+        
+
         pfx_path = glob.glob(os.path.join('..', '*.pfx'))
-        if len(pfx_path) != 1:
-            raise RuntimeError('Expected to find exactly one PFX in the outer dir, found this: %r' % pfx_path)
-        pfx_path = pfx_path[0]
+        #if len(pfx_path) != 1:
+        #    raise RuntimeError('Expected to find exactly one PFX in the outer dir, found this: %r' % pfx_path)
+        pfx_path = ''
         print('Using this certificate:', pfx_path)
 
         pfx_password = input('Enter password to read the certificate file: ').strip()

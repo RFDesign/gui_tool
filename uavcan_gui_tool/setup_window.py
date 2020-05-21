@@ -124,7 +124,7 @@ class BackgroundIfaceListUpdater:
 
 
 class DirectorySelectionWidget(QGroupBox):
-    def __init__(self, parent, dsdl_path=None):
+    def __init__(self, parent, dsdl_path='/home/buzz/ardupilot/modules/uavcan/dsdl/rfd'):
         super(DirectorySelectionWidget, self).__init__('Location of custom DSDL definitions [optional]', parent)
         self._dir_selection = dsdl_path
         dir_textbox = QLineEdit(self)
